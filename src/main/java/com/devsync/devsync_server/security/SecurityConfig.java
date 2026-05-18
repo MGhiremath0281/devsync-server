@@ -24,11 +24,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // Disabled for stateless REST and WebSockets
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        // Allow public access to HTTP history endpoints and raw WebSocket frames during testing
+                        // Add /ws-raw/** right here!
                         .requestMatchers("/api/v1/messages/**").permitAll()
                         .requestMatchers("/ws-provider/**").permitAll()
+                        .requestMatchers("/ws-raw/**").permitAll()
                         .anyRequest().authenticated()
                 );
 
