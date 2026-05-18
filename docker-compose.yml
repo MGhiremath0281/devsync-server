@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: devsync-postgres
+
+    restart: always
+
+    ports:
+      - "5432:5432"
+
+    environment:
+      POSTGRES_DB: devsync
+      POSTGRES_USER: devsync
+      POSTGRES_PASSWORD: devsync123
+      TZ: UTC
+      PGTZ: UTC
+
+    command: postgres -c timezone=UTC
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - devsync-network
+
+  redis:
+    image: redis:7
+    container_name: devsync-redis
+
+    restart: always
+
+    ports:
+      - "6379:6379"
+
+    environment:
+      TZ: UTC
+
+    volumes:
+      - redis_data:/data
+
+    networks:
+      - devsync-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  devsync-network:
+    driver: bridge

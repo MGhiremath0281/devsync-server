@@ -1,3 +1,10 @@
 spring:
+
   application:
     name: devsync-server
+
+  profiles:
+    active: dev
+
+  jackson:
+    time-zone: UTC
