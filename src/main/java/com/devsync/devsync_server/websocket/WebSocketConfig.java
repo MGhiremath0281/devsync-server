@@ -17,6 +17,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Endpoint 1: Raw direct connection line for standalone tools (WebSocket King / Postman)
+        registry.addEndpoint("/ws-raw")
+                .setAllowedOriginPatterns("*");
+
+        // Endpoint 2: Existing production connection line with SockJS browser fallbacks
         registry.addEndpoint("/ws-provider")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
@@ -24,13 +29,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
+        // Subscriptions destination targets
         registry.enableSimpleBroker("/topic", "/queue");
+
+        // Incoming execution route target prefix
         registry.setApplicationDestinationPrefixes("/app");
+
+        // Target prefix for routing direct user-to-user DMs
         registry.setUserDestinationPrefix("/user");
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
+        // Attaches our security handshake interceptor pipeline
         registration.interceptors(webSocketInterceptor);
     }
 }
