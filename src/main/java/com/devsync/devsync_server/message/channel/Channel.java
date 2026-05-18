@@ -1,5 +1,6 @@
 package com.devsync.devsync_server.message.channel;
 
+import com.devsync.devsync_server.workspace.model.Team;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -25,6 +26,10 @@ public class Channel {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
 
     @PrePersist
     protected void onCreate() {
