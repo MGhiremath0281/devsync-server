@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/devsync
     username: devsync
-    password: devsync123
+    password: devsync
     driver-class-name: org.postgresql.Driver
 
   # Updated: Modern Spring Boot 3.x structure (spring.data.redis is deprecated/moved)
