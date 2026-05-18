@@ -5,7 +5,6 @@ spring:
     password: devsync
     driver-class-name: org.postgresql.Driver
 
-  # Updated: Modern Spring Boot 3.x structure (spring.data.redis is deprecated/moved)
   redis:
     host: localhost
     port: 6379
@@ -19,3 +18,6 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+
+jwt:
+  secret: "DevSyncSuperSecretSecureSigningKey2026EnterpriseEdition"
