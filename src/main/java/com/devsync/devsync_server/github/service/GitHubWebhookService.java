@@ -1,13 +1,18 @@
 package com.devsync.devsync_server.github.service;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class GitHubWebhookService {
+
+    private final SimpMessagingTemplate messagingTemplate;
 
     public void processEvent(String eventType,
                              Map<String, Object> payload) {
@@ -71,6 +76,11 @@ public class GitHubWebhookService {
         log.info("Pusher: {}", pusherName);
         log.info("Commit Count: {}", commitCount);
         log.info("================================");
+
+        messagingTemplate.convertAndSend(
+                "/topic/github",
+                payload
+        );
     }
 
     private void handleIssueEvent(
