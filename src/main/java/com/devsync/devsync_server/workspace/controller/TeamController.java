@@ -77,17 +77,34 @@ public class TeamController {
     }
 
     @PostMapping("/approve/{requestId}")
-    public ResponseEntity<?> approveMember(@RequestHeader("Authorization") String tokenHeader, @PathVariable Long requestId) {
+    public ResponseEntity<?> approveMember(
+            @RequestHeader("Authorization") String tokenHeader,
+            @PathVariable Long requestId) {
+
         Long userId = validateAndGetUserId(tokenHeader);
-        TeamMembership membership = membershipRepository.findById(requestId).orElseThrow();
-        Team team = teamRepository.findById(membership.getTeamId()).orElseThrow();
+
+        TeamMembership membership = membershipRepository.findById(requestId)
+                .orElse(null);
+
+        if (membership == null) {
+            return ResponseEntity.badRequest().body("Invalid membership requestId");
+        }
+
+        Team team = teamRepository.findById(membership.getTeamId())
+                .orElse(null);
+
+        if (team == null) {
+            return ResponseEntity.badRequest().body("Team does not exist for this membership");
+        }
 
         if (!team.getOwnerId().equals(userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only the Team Lead can execute approvals.");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only the Team Lead can execute approvals.");
         }
 
         membership.setStatus("APPROVED");
         membership.setJoinedAt(LocalDateTime.now());
+
         return ResponseEntity.ok(membershipRepository.save(membership));
     }
 
