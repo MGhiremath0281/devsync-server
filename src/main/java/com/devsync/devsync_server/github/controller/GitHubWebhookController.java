@@ -1,20 +1,20 @@
 package com.devsync.devsync_server.github.controller;
 
-import java.util.Map;
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import com.devsync.devsync_server.github.service.GitHubWebhookService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/github")
+@RequiredArgsConstructor
 @Slf4j
 public class GitHubWebhookController {
+
+    private final GitHubWebhookService gitHubWebhookService;
 
     @PostMapping("/webhook")
     public ResponseEntity<String> receiveWebhook(
@@ -24,23 +24,7 @@ public class GitHubWebhookController {
 
         log.info("Received GitHub Event: {}", eventType);
 
-        switch (eventType) {
-
-            case "pull_request":
-                log.info("Pull Request Event Received");
-                break;
-
-            case "push":
-                log.info("Push Event Received");
-                break;
-
-            case "issues":
-                log.info("Issue Event Received");
-                break;
-
-            default:
-                log.info("Unhandled Event: {}", eventType);
-        }
+        gitHubWebhookService.processEvent(eventType, payload);
 
         return ResponseEntity.ok("Webhook received successfully");
     }

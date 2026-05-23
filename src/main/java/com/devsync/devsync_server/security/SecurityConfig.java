@@ -2,36 +2,23 @@ package com.devsync.devsync_server.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-@EnableWebSecurity
-@EnableMethodSecurity // Prepares method-level @PreAuthorize security for later
 public class SecurityConfig {
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        // Enforcing strength 12 BCrypt as specified in architectural goals
-        return new BCryptPasswordEncoder(12);
-    }
-
-    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // Add /ws-raw/** right here!
-                        .requestMatchers("/api/v1/messages/**").permitAll()
-                        .requestMatchers("/ws-provider/**").permitAll()
-                        .requestMatchers("/ws-raw/**").permitAll()
+                        .requestMatchers("/api/github/webhook").permitAll()
                         .anyRequest().authenticated()
-                );
+                )
+                .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
