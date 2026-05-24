@@ -28,9 +28,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. Open the Auth Gateway so developers can register/login from the scratch
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
 
                         // 2. Open up the multi-tenant workspace management endpoints
                         .requestMatchers("/api/teams/**").permitAll()
+                        .requestMatchers("/api/channels/**").permitAll()
 
                         // 3. Keep the messaging and real-time streaming transport gates completely clear
                         .requestMatchers("/api/v1/messages/**").permitAll()
