@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,81 +29,136 @@ public class MessageServiceImpl implements MessageService {
     @Override
     @Transactional
     public MessageResponse saveChannelMessage(MessageRequest request) {
+
         if (request.getChannelId() == null) {
-            throw new IllegalArgumentException("Channel ID cannot be null for channel messages");
+            throw new IllegalArgumentException(
+                    "Channel ID cannot be null for channel messages"
+            );
         }
 
-        Channel channelProxy = entityManager.getReference(Channel.class, request.getChannelId());
+        Channel channelProxy =
+                entityManager.getReference(
+                        Channel.class,
+                        request.getChannelId()
+                );
 
         Message message = Message.builder()
                 .content(request.getContent())
-                .type(MessageType.valueOf(request.getType().toUpperCase()))
+                .type(
+                        MessageType.valueOf(
+                                request.getType().toUpperCase()
+                        )
+                )
                 .codeLanguage(request.getCodeLanguage())
                 .senderId(request.getSenderId())
                 .channel(channelProxy)
                 .build();
 
         Message saved = messageRepository.save(message);
+
         return mapToResponse(saved);
     }
 
     @Override
     @Transactional
     public MessageResponse saveDirectMessage(MessageRequest request) {
+
         if (request.getRecipientId() == null) {
-            throw new IllegalArgumentException("Recipient ID cannot be null for direct messages");
+            throw new IllegalArgumentException(
+                    "Recipient ID cannot be null for direct messages"
+            );
         }
 
         Message message = Message.builder()
                 .content(request.getContent())
-                .type(MessageType.valueOf(request.getType().toUpperCase()))
+                .type(
+                        MessageType.valueOf(
+                                request.getType().toUpperCase()
+                        )
+                )
                 .codeLanguage(request.getCodeLanguage())
                 .senderId(request.getSenderId())
                 .recipientId(request.getRecipientId())
                 .build();
 
         Message saved = messageRepository.save(message);
+
         return mapToResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<MessageResponse> getChannelHistory(Long channelId, Pageable pageable) {
-        Slice<Message> messageSlice = messageRepository.findByChannelIdOrderByCreatedAtDesc(channelId, pageable);
-        return messageSlice.getContent().stream()
+    public List<MessageResponse> getChannelHistory(
+            Long channelId,
+            Pageable pageable
+    ) {
+
+        Slice<Message> messageSlice =
+                messageRepository.findByChannel_IdOrderByCreatedAtDesc(
+                        channelId,
+                        pageable
+                );
+
+        return messageSlice.getContent()
+                .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<MessageResponse> getDirectMessageHistory(Long userA, Long userB, Pageable pageable) {
-        Slice<Message> messageSlice = messageRepository.findDirectMessages(userA, userB, pageable);
-        return messageSlice.getContent().stream()
+    public List<MessageResponse> getDirectMessageHistory(
+            Long userA,
+            Long userB,
+            Pageable pageable
+    ) {
+
+        Slice<Message> messageSlice =
+                messageRepository.findDirectMessages(
+                        userA,
+                        userB,
+                        pageable
+                );
+
+        return messageSlice.getContent()
+                .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional
     public void markAsRead(Long messageId, Long userId) {
-        if (receiptRepository.findByMessageIdAndUserId(messageId, userId).isEmpty()) {
+
+        boolean alreadyRead =
+                receiptRepository
+                        .findByMessageIdAndUserId(messageId, userId)
+                        .isPresent();
+
+        if (!alreadyRead) {
+
             MessageReceipt receipt = MessageReceipt.builder()
                     .messageId(messageId)
                     .userId(userId)
                     .build();
+
             receiptRepository.save(receipt);
         }
     }
 
     private MessageResponse mapToResponse(Message message) {
+
         return MessageResponse.builder()
                 .id(message.getId())
                 .content(message.getContent())
                 .type(message.getType().name())
                 .codeLanguage(message.getCodeLanguage())
                 .senderId(message.getSenderId())
-                .channelId(message.getChannel() != null ? message.getChannel().getId() : null)
+                .channelId(
+                        message.getChannel() != null
+                                ? message.getChannel().getId()
+                                : null
+                )
                 .recipientId(message.getRecipientId())
                 .createdAt(message.getCreatedAt())
                 .updatedAt(message.getUpdatedAt())
