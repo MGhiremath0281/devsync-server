@@ -1,5 +1,5 @@
 package com.devsync.devsync_server.github.service;
-
+import com.devsync.devsync_server.github.dto.GitHubEventDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -77,9 +77,18 @@ public class GitHubWebhookService {
         log.info("Commit Count: {}", commitCount);
         log.info("================================");
 
+        GitHubEventDTO eventDTO =
+                new GitHubEventDTO(
+                        "push",
+                        repoName,
+                        branch,
+                        pusherName,
+                        commitCount
+                );
+
         messagingTemplate.convertAndSend(
                 "/topic/github",
-                payload
+                eventDTO
         );
     }
 
