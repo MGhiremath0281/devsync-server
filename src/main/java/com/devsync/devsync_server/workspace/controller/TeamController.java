@@ -42,6 +42,26 @@ public class TeamController {
         Long userId = validateAndGetUserId(token);
         return ResponseEntity.ok(teamService.joinTeam(userId, teamId));
     }
+    @GetMapping("/my")
+    public ResponseEntity<?> getMyTeams(
+            @RequestHeader("Authorization") String token
+    ) {
+
+        Long userId = validateAndGetUserId(token);
+
+        return ResponseEntity.ok(teamService.getMyTeams(userId));
+    }
+
+    @GetMapping("/{teamId}")
+    public ResponseEntity<?> getTeam(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long teamId
+    ) {
+
+        validateAndGetUserId(token);
+
+        return ResponseEntity.ok(teamService.getTeam(teamId));
+    }
 
     @PostMapping("/approve/{requestId}")
     public ResponseEntity<TeamMembership> approveMember(
@@ -65,4 +85,5 @@ public class TeamController {
 
         return claims.get("userId", Long.class);
     }
+
 }
