@@ -19,5 +19,11 @@ spring:
         jdbc:
           time_zone: UTC
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: mappings
+
 jwt:
   secret: "DevSyncSuperSecretSecureSigningKey2026EnterpriseEdition"
