@@ -26,6 +26,7 @@ services:
     networks:
       - devsync-network
 
+
   redis:
     image: redis:7
     container_name: devsync-redis
@@ -43,6 +44,35 @@ services:
 
     networks:
       - devsync-network
+
+
+  backend:
+    build: .
+    container_name: devsync-backend
+
+    restart: always
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      - postgres
+      - redis
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/devsync
+      SPRING_DATASOURCE_USERNAME: devsync
+      SPRING_DATASOURCE_PASSWORD: devsync123
+
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+
+      TZ: UTC
+      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC
+
+    networks:
+      - devsync-network
+
 
 volumes:
   postgres_data:

@@ -20,3 +20,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: mappings
+
+jwt:
+  secret: "DevSyncSuperSecretSecureSigningKey2026EnterpriseEdition"
