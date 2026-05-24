@@ -3,6 +3,7 @@ package com.devsync.devsync_server.message.channel;
 import com.devsync.devsync_server.workspace.model.Team;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,15 +22,12 @@ public class Channel {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "workspace_id", nullable = false)
-    private Long workspaceId; // Loose coupling to the Workspace module
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_id", nullable = false)
+    private Team team;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id")
-    private Team team;
 
     @PrePersist
     protected void onCreate() {
