@@ -39,6 +39,9 @@ public class SecurityConfig {
                         .requestMatchers("/ws-provider/**").permitAll()
                         .requestMatchers("/ws-raw/**").permitAll()
 
+                        // 4. Added: Open the layout engine endpoints to match team authorization patterns
+                        .requestMatchers("/api/v1/dashboard/**").permitAll()
+
                         // Any other administrative edge targets fall back under standard security rules
                         .anyRequest().authenticated()
                 );
