@@ -1,7 +1,9 @@
 package com.devsync.devsync_server.workspace.controller;
 
 import com.devsync.devsync_server.workspace.dto.DashboardResponse;
+import com.devsync.devsync_server.workspace.model.Team;
 import com.devsync.devsync_server.workspace.service.DashboardService;
+import com.devsync.devsync_server.workspace.service.TeamService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -19,6 +21,7 @@ import java.security.Key;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final TeamService teamService;
 
     @Value("${jwt.secret:YOUR_SUPER_SECRET_KEY_THAT_IS_AT_LEAST_256_BITS_LONG_FOR_HMAC}")
     private String jwtSecret;
@@ -66,5 +69,27 @@ public class DashboardController {
 
         dashboardService.trackUserAccess(userId, entityId, entityName, entityType);
         return ResponseEntity.noContent().build();
+    }
+    @PostMapping("/create")
+    public ResponseEntity<Team> createTeam(
+            @RequestHeader("Authorization") String token,
+            @RequestParam String name,
+            @RequestParam boolean isPrivate) {
+
+        Long userId = validateAndGetUserId(token);
+        return ResponseEntity.ok(teamService.createTeam(userId, name, isPrivate));
+    }
+    private Long validateAndGetUserId(String header) {
+        String token = header.substring(7);
+
+        Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("userId", Long.class);
     }
 }
