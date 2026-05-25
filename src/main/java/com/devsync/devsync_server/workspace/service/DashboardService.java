@@ -5,6 +5,7 @@ import com.devsync.devsync_server.message.service.ChannelService;
 import com.devsync.devsync_server.workspace.dto.AppShortcutResponse;
 import com.devsync.devsync_server.workspace.dto.DashboardResponse;
 import com.devsync.devsync_server.workspace.dto.FrequentActivityResponse;
+import com.devsync.devsync_server.workspace.dto.WorkspaceDashboardResponse;
 import com.devsync.devsync_server.workspace.model.Team;
 import com.devsync.devsync_server.workspace.model.UserDashboardActivity;
 import com.devsync.devsync_server.workspace.repository.UserDashboardActivityRepository;
@@ -29,41 +30,70 @@ public class DashboardService {
     private final UserDashboardActivityRepository activityRepository;
 
     @Transactional(readOnly = true)
-    public DashboardResponse getDashboardSummary(Long userId, String fallbackName) {
-        // 1. Resolve date exactly matching wireframe string standard (e.g. "Sunday 24 May")
-        String formattedDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE dd MMMM", Locale.ENGLISH));
+    public DashboardResponse getDashboardSummary(
+            Long userId,
+            String fallbackName
+    ) {
 
-        // 2. Load left sidebar workspaces using your existing team engine logic
-        List<Team> primaryTeams = teamService.getMyTeams(userId);
+        String formattedDate = LocalDateTime.now()
+                .format(
+                        DateTimeFormatter.ofPattern(
+                                "EEEE dd MMMM",
+                                Locale.ENGLISH
+                        )
+                );
 
-        // 3. Populate middle strip apps dynamically from channels linked to user's first active workspace
-        List<AppShortcutResponse> appShortcuts = new ArrayList<>();
+        List<Team> primaryTeams =
+                teamService.getMyTeams(userId);
+
+        List<AppShortcutResponse> appShortcuts =
+                new ArrayList<>();
+
         if (!primaryTeams.isEmpty()) {
-            Long primaryTeamId = primaryTeams.get(0).getId();
-            List<ChannelResponse> systemChannels = channelService.getChannels(primaryTeamId);
+
+            Long primaryTeamId =
+                    primaryTeams.get(0).getId();
+
+            List<ChannelResponse> systemChannels =
+                    channelService.getChannels(primaryTeamId);
 
             appShortcuts = systemChannels.stream()
-                    .map(channel -> AppShortcutResponse.builder()
-                            .id(channel.getId())
-                            .name(channel.getName())
-                            .type("CHANNEL")
-                            .targetUrl("/workspace/" + primaryTeamId + "/channel/" + channel.getId())
-                            .build())
+                    .map(channel ->
+                            AppShortcutResponse.builder()
+                                    .id(channel.getId())
+                                    .name(channel.getName())
+                                    .type("CHANNEL")
+                                    .targetUrl(
+                                            "/workspace/"
+                                                    + primaryTeamId
+                                                    + "/channel/"
+                                                    + channel.getId()
+                                    )
+                                    .build()
+                    )
                     .collect(Collectors.toList());
         }
 
-        // 4. Populate bottom structural tray containing user's top 5 hot tracks
-        List<FrequentActivityResponse> frequentActivities = activityRepository
-                .findByUserIdOrderByLastAccessedAtDesc(userId, PageRequest.of(0, 5))
-                .stream()
-                .map(act -> FrequentActivityResponse.builder()
-                        .id(act.getEntityId())
-                        .title(act.getEntityName())
-                        .description("Last viewed active tracking node inside " + act.getEntityType().toLowerCase())
-                        .entityType(act.getEntityType())
-                        .lastAccessedAt(act.getLastAccessedAt())
-                        .build())
-                .collect(Collectors.toList());
+        List<FrequentActivityResponse> frequentActivities =
+                activityRepository
+                        .findByUserIdOrderByLastAccessedAtDesc(
+                                userId,
+                                PageRequest.of(0, 5)
+                        )
+                        .stream()
+                        .map(act ->
+                                FrequentActivityResponse.builder()
+                                        .id(act.getEntityId())
+                                        .title(act.getEntityName())
+                                        .description(
+                                                "Last viewed active tracking node inside "
+                                                        + act.getEntityType().toLowerCase()
+                                        )
+                                        .entityType(act.getEntityType())
+                                        .lastAccessedAt(act.getLastAccessedAt())
+                                        .build()
+                        )
+                        .collect(Collectors.toList());
 
         return DashboardResponse.builder()
                 .userName(fallbackName)
@@ -74,18 +104,77 @@ public class DashboardService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public WorkspaceDashboardResponse getWorkspaceDashboard(
+            Long userId,
+            Long teamId
+    ) {
+
+        // 1. Load workspace
+        Team workspace =
+                teamService.getTeamById(teamId);
+
+        // 2. Validate membership access
+        boolean isMember =
+                teamService.isUserMember(userId, teamId);
+
+        if (!isMember) {
+
+            throw new RuntimeException(
+                    "You are not a member of this workspace"
+            );
+        }
+
+        // 3. Load workspace channels
+        List<ChannelResponse> channels =
+                channelService.getChannels(teamId);
+
+        // 4. Build workspace dashboard response
+        return WorkspaceDashboardResponse.builder()
+                .workspace(workspace)
+                .channels(channels)
+                .totalChannels(channels.size())
+                .totalMembers(
+                        (int) teamService.getTotalMembers(teamId)
+                )
+                .formattedDate(
+                        LocalDateTime.now()
+                                .format(
+                                        DateTimeFormatter.ofPattern(
+                                                "EEEE dd MMMM",
+                                                Locale.ENGLISH
+                                        )
+                                )
+                )
+                .build();
+    }
+
     @Transactional
-    public void trackUserAccess(Long userId, Long entityId, String entityName, String entityType) {
-        UserDashboardActivity activity = activityRepository
-                .findByUserIdAndEntityIdAndEntityType(userId, entityId, entityType)
-                .orElse(UserDashboardActivity.builder()
-                        .userId(userId)
-                        .entityId(entityId)
-                        .entityType(entityType)
-                        .build());
+    public void trackUserAccess(
+            Long userId,
+            Long entityId,
+            String entityName,
+            String entityType
+    ) {
+
+        UserDashboardActivity activity =
+                activityRepository
+                        .findByUserIdAndEntityIdAndEntityType(
+                                userId,
+                                entityId,
+                                entityType
+                        )
+                        .orElse(
+                                UserDashboardActivity.builder()
+                                        .userId(userId)
+                                        .entityId(entityId)
+                                        .entityType(entityType)
+                                        .build()
+                        );
 
         activity.setEntityName(entityName);
         activity.setLastAccessedAt(LocalDateTime.now());
+
         activityRepository.save(activity);
     }
 }

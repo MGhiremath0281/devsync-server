@@ -1,6 +1,7 @@
 package com.devsync.devsync_server.workspace.controller;
 
 import com.devsync.devsync_server.workspace.dto.DashboardResponse;
+import com.devsync.devsync_server.workspace.dto.WorkspaceDashboardResponse;
 import com.devsync.devsync_server.workspace.model.Team;
 import com.devsync.devsync_server.workspace.service.DashboardService;
 import com.devsync.devsync_server.workspace.service.TeamService;
@@ -30,8 +31,8 @@ public class DashboardController {
     public ResponseEntity<DashboardResponse> loadDashboardLayout(
             @RequestHeader("Authorization") String tokenHeader) {
 
-        // Extract token and evaluate userId
         String pureToken = tokenHeader.substring(7);
+
         Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
         Claims claims = Jwts.parserBuilder()
@@ -42,17 +43,40 @@ public class DashboardController {
 
         Long userId = claims.get("userId", Long.class);
 
-        // Pull target screen layout properties from claims if available
         String extractionName = claims.get("firstName", String.class);
+
         if (extractionName == null || extractionName.isBlank()) {
-            extractionName = claims.get("sub", String.class); // fallback to username/subject string
-        }
-        if (extractionName == null || extractionName.isBlank()) {
-            extractionName = "User"; // absolute fallback safe state
+            extractionName = claims.get("sub", String.class);
         }
 
-        DashboardResponse summaryPayload = dashboardService.getDashboardSummary(userId, extractionName);
+        if (extractionName == null || extractionName.isBlank()) {
+            extractionName = "User";
+        }
+
+        DashboardResponse summaryPayload =
+                dashboardService.getDashboardSummary(
+                        userId,
+                        extractionName
+                );
+
         return ResponseEntity.ok(summaryPayload);
+    }
+
+    @GetMapping("/workspace/{teamId}")
+    public ResponseEntity<WorkspaceDashboardResponse> getWorkspaceDashboard(
+            @RequestHeader("Authorization") String tokenHeader,
+            @PathVariable Long teamId
+    ) {
+
+        Long userId = validateAndGetUserId(tokenHeader);
+
+        WorkspaceDashboardResponse response =
+                dashboardService.getWorkspaceDashboard(
+                        userId,
+                        teamId
+                );
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/track-access")
@@ -63,13 +87,27 @@ public class DashboardController {
             @RequestParam String entityType) {
 
         String pureToken = tokenHeader.substring(7);
+
         Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(pureToken).getBody();
+
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(pureToken)
+                .getBody();
+
         Long userId = claims.get("userId", Long.class);
 
-        dashboardService.trackUserAccess(userId, entityId, entityName, entityType);
+        dashboardService.trackUserAccess(
+                userId,
+                entityId,
+                entityName,
+                entityType
+        );
+
         return ResponseEntity.noContent().build();
     }
+
     @PostMapping("/create")
     public ResponseEntity<Team> createTeam(
             @RequestHeader("Authorization") String token,
@@ -77,12 +115,23 @@ public class DashboardController {
             @RequestParam boolean isPrivate) {
 
         Long userId = validateAndGetUserId(token);
-        return ResponseEntity.ok(teamService.createTeam(userId, name, isPrivate));
+
+        return ResponseEntity.ok(
+                teamService.createTeam(
+                        userId,
+                        name,
+                        isPrivate
+                )
+        );
     }
+
     private Long validateAndGetUserId(String header) {
+
         String token = header.substring(7);
 
-        Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        Key key = Keys.hmacShaKeyFor(
+                jwtSecret.getBytes(StandardCharsets.UTF_8)
+        );
 
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(key)
