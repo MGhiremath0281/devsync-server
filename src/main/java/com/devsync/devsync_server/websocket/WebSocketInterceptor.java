@@ -32,32 +32,40 @@ public class WebSocketInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        if (accessor != null && (StompCommand.CONNECT.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand()))) {
-            String authHeader = accessor.getFirstNativeHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                throw new SecurityException("Access Denied: Token validation credentials missing.");
-            }
+        if (accessor != null && accessor.getCommand() != null) {
+            StompCommand command = accessor.getCommand();
 
-            String token = authHeader.substring(7);
-            try {
-                Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-                Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
-                Long userId = claims.get("userId", Long.class);
+            // Only validate on explicit STOMP CONNECT and SUBSCRIBE commands
+            if (StompCommand.CONNECT.equals(command) || StompCommand.SUBSCRIBE.equals(command)) {
+                String authHeader = accessor.getFirstNativeHeader("Authorization");
 
-                if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
-                    String destination = accessor.getDestination();
-                    if (destination != null && destination.startsWith("/topic/channel/")) {
-                        // For validation mapping, assume channel is linked to Team Workspace ID 1
-                        Long parentTeamId = 1L;
+                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                    log.error("Access Denied: Token validation credentials missing for command {}", command);
+                    throw new SecurityException("Access Denied: Token validation credentials missing.");
+                }
 
-                        boolean isApproved = membershipRepository.existsByUserIdAndTeamIdAndStatus(userId, parentTeamId, "APPROVED");
-                        if (!isApproved) {
-                            throw new SecurityException("Forbidden: Your multi-tenant membership state is not approved.");
+                String token = authHeader.substring(7);
+                try {
+                    Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+                    Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+                    Long userId = claims.get("userId", Long.class);
+
+                    if (StompCommand.SUBSCRIBE.equals(command)) {
+                        String destination = accessor.getDestination();
+                        if (destination != null && destination.startsWith("/topic/channel/")) {
+                            Long parentTeamId = 1L; // Fallback or dynamic calculation mapping
+
+                            boolean isApproved = membershipRepository.existsByUserIdAndTeamIdAndStatus(userId, parentTeamId, "APPROVED");
+                            if (!isApproved) {
+                                log.warn("Forbidden subscription attempt by user ID: {}", userId);
+                                throw new SecurityException("Forbidden: Your multi-tenant membership state is not approved.");
+                            }
                         }
                     }
+                } catch (Exception e) {
+                    log.error("Unauthorized connection frame verification footprint drop: {}", e.getMessage());
+                    throw new SecurityException("Unauthorized connection frame verification footprint drop.");
                 }
-            } catch (Exception e) {
-                throw new SecurityException("Unauthorized connection frame verification footprint drop.");
             }
         }
         return message;
