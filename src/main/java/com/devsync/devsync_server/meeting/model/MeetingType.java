@@ -1,4 +1,7 @@
 package com.devsync.devsync_server.meeting.model;
 
-public class MeetingType {
+public enum MeetingType {
+    CHANNEL,
+    GROUP,
+    DM
 }
