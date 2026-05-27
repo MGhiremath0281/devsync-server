@@ -1,6 +1,5 @@
 package com.devsync.devsync_server.workspace.dto;
 
-import com.devsync.devsync_server.workspace.model.Team;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +14,7 @@ import java.util.List;
 public class DashboardResponse {
     private String userName;
     private String formattedDate;
-    private List<Team> workspaces;
+    private List<WorkspaceSummary> workspaces;
     private List<AppShortcutResponse> userApps;
     private List<FrequentActivityResponse> frequentlyAccessed;
 }

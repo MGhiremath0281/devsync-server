@@ -1,7 +1,6 @@
 package com.devsync.devsync_server.workspace.dto;
 
 import com.devsync.devsync_server.message.dto.ChannelResponse;
-import com.devsync.devsync_server.workspace.model.Team;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class WorkspaceDashboardResponse {
 
-    private Team workspace;
+    private WorkspaceSummary workspace;
 
     private List<ChannelResponse> channels;
 
