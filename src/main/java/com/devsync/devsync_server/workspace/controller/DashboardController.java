@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
@@ -22,123 +24,100 @@ import java.security.Key;
 public class DashboardController {
 
     private final DashboardService dashboardService;
-    private final TeamService teamService;
+    private final TeamService      teamService;
 
     @Value("${jwt.secret:YOUR_SUPER_SECRET_KEY_THAT_IS_AT_LEAST_256_BITS_LONG_FOR_HMAC}")
     private String jwtSecret;
+
+    // ── GET /summary ──────────────────────────────────────────────────────────
 
     @GetMapping("/summary")
     public ResponseEntity<DashboardResponse> loadDashboardLayout(
             @RequestHeader("Authorization") String tokenHeader) {
 
-        String pureToken = tokenHeader.substring(7);
+        Claims claims     = parseClaims(tokenHeader);
+        Long   userId     = extractUserId(claims);
+        String displayName = claims.get("firstName", String.class);
 
-        Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        if (displayName == null || displayName.isBlank()) displayName = claims.getSubject();
+        if (displayName == null || displayName.isBlank()) displayName = "User";
 
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(pureToken)
-                .getBody();
-
-        Long userId = claims.get("userId", Long.class);
-
-        String extractionName = claims.get("firstName", String.class);
-
-        if (extractionName == null || extractionName.isBlank()) {
-            extractionName = claims.get("sub", String.class);
-        }
-
-        if (extractionName == null || extractionName.isBlank()) {
-            extractionName = "User";
-        }
-
-        DashboardResponse summaryPayload =
-                dashboardService.getDashboardSummary(
-                        userId,
-                        extractionName
-                );
-
-        return ResponseEntity.ok(summaryPayload);
+        return ResponseEntity.ok(dashboardService.getDashboardSummary(userId, displayName));
     }
+
+    // ── GET /workspace/{teamId} ───────────────────────────────────────────────
 
     @GetMapping("/workspace/{teamId}")
     public ResponseEntity<WorkspaceDashboardResponse> getWorkspaceDashboard(
             @RequestHeader("Authorization") String tokenHeader,
-            @PathVariable Long teamId
-    ) {
+            @PathVariable Long teamId) {
 
-        Long userId = validateAndGetUserId(tokenHeader);
-
-        WorkspaceDashboardResponse response =
-                dashboardService.getWorkspaceDashboard(
-                        userId,
-                        teamId
-                );
-
-        return ResponseEntity.ok(response);
+        Long userId = extractUserId(parseClaims(tokenHeader));
+        return ResponseEntity.ok(dashboardService.getWorkspaceDashboard(userId, teamId));
     }
+
+    // ── POST /track-access ────────────────────────────────────────────────────
 
     @PostMapping("/track-access")
-    public ResponseEntity<Void> logDashboardActivity(
+    public ResponseEntity<Map<String, String>> logDashboardActivity(
             @RequestHeader("Authorization") String tokenHeader,
-            @RequestParam Long entityId,
+            @RequestParam Long   entityId,
             @RequestParam String entityName,
-            @RequestParam String entityType) {
+            @RequestParam String entityType,
+            @RequestParam(required = false, defaultValue = "") String description) {
 
-        String pureToken = tokenHeader.substring(7);
+        Long userId = extractUserId(parseClaims(tokenHeader));
+        dashboardService.trackUserAccess(userId, entityId, entityName, entityType);
 
-        Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(pureToken)
-                .getBody();
-
-        Long userId = claims.get("userId", Long.class);
-
-        dashboardService.trackUserAccess(
-                userId,
-                entityId,
-                entityName,
-                entityType
-        );
-
-        return ResponseEntity.noContent().build();
+        Map<String, String> body = new HashMap<>();
+        body.put("status",  "success");
+        body.put("message", "Activity logged");
+        return ResponseEntity.ok(body);
     }
+
+    // ── POST /create ──────────────────────────────────────────────────────────
 
     @PostMapping("/create")
-    public ResponseEntity<Team> createTeam(
-            @RequestHeader("Authorization") String token,
-            @RequestParam String name,
+    public ResponseEntity<Map<String, Object>> createTeam(
+            @RequestHeader("Authorization") String tokenHeader,
+            @RequestParam String  name,
             @RequestParam boolean isPrivate) {
 
-        Long userId = validateAndGetUserId(token);
+        Long userId = extractUserId(parseClaims(tokenHeader));
 
-        return ResponseEntity.ok(
-                teamService.createTeam(
-                        userId,
-                        name,
-                        isPrivate
-                )
-        );
+        // ✅ KEY FIX: Do NOT return the raw Team JPA entity.
+        //    Team has lazy-loaded relationships (members, channels, etc.).
+        //    Jackson tries to serialize them, hits an uninitialized proxy,
+        //    throws a LazyInitializationException, and Spring returns an
+        //    HTML 500 error page — which is the "Unexpected token '<'" the
+        //    frontend sees.
+        //
+        //    Instead, return a plain Map with only the fields the frontend
+        //    actually needs (id + name). This is always safe to serialize.
+        Team created = teamService.createTeam(userId, name, isPrivate);
+
+        Map<String, Object> safeResponse = new HashMap<>();
+        safeResponse.put("id",        created.getId());
+        safeResponse.put("name",      created.getName());
+        safeResponse.put("isPrivate", created.isPrivate());
+
+        return ResponseEntity.ok(safeResponse);
     }
 
-    private Long validateAndGetUserId(String header) {
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-        String token = header.substring(7);
+    private Claims parseClaims(String authHeader) {
+        String token = authHeader.startsWith("Bearer ")
+                ? authHeader.substring(7) : authHeader;
+        Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        return Jwts.parserBuilder().setSigningKey(key).build()
+                .parseClaimsJws(token).getBody();
+    }
 
-        Key key = Keys.hmacShaKeyFor(
-                jwtSecret.getBytes(StandardCharsets.UTF_8)
-        );
-
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-
-        return claims.get("userId", Long.class);
+    private Long extractUserId(Claims claims) {
+        Object raw = claims.get("userId");
+        if (raw == null) throw new IllegalArgumentException(
+                "JWT missing 'userId' claim — please log out and log in again.");
+        return ((Number) raw).longValue();
     }
 }
