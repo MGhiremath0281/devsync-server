@@ -29,45 +29,112 @@ public class WebSocketInterceptor implements ChannelInterceptor {
     private String jwtSecret;
 
     @Override
-    public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+    public Message<?> preSend(
+            Message<?> message,
+            MessageChannel channel
+    ) {
 
-        if (accessor != null && accessor.getCommand() != null) {
-            StompCommand command = accessor.getCommand();
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(
+                        message,
+                        StompHeaderAccessor.class
+                );
 
-            // Only validate on explicit STOMP CONNECT and SUBSCRIBE commands
-            if (StompCommand.CONNECT.equals(command) || StompCommand.SUBSCRIBE.equals(command)) {
-                String authHeader = accessor.getFirstNativeHeader("Authorization");
+        if (accessor != null &&
+                accessor.getCommand() != null) {
 
-                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                    log.error("Access Denied: Token validation credentials missing for command {}", command);
-                    throw new SecurityException("Access Denied: Token validation credentials missing.");
+            StompCommand command =
+                    accessor.getCommand();
+
+            // ONLY validate during CONNECT
+            if (StompCommand.CONNECT.equals(command)) {
+
+                log.info(
+                        "STOMP CONNECT frame received"
+                );
+
+                String authHeader =
+                        accessor.getFirstNativeHeader(
+                                "Authorization"
+                        );
+
+                if (authHeader == null ||
+                        !authHeader.startsWith("Bearer ")) {
+
+                    log.error(
+                            "Access Denied: Missing JWT token during WebSocket CONNECT"
+                    );
+
+                    throw new SecurityException(
+                            "Access Denied: Token missing."
+                    );
                 }
 
-                String token = authHeader.substring(7);
+                String token =
+                        authHeader.substring(7);
+
                 try {
-                    Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-                    Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
-                    Long userId = claims.get("userId", Long.class);
 
-                    if (StompCommand.SUBSCRIBE.equals(command)) {
-                        String destination = accessor.getDestination();
-                        if (destination != null && destination.startsWith("/topic/channel/")) {
-                            Long parentTeamId = 1L; // Fallback or dynamic calculation mapping
+                    Key key =
+                            Keys.hmacShaKeyFor(
+                                    jwtSecret.getBytes(
+                                            StandardCharsets.UTF_8
+                                    )
+                            );
 
-                            boolean isApproved = membershipRepository.existsByUserIdAndTeamIdAndStatus(userId, parentTeamId, "APPROVED");
-                            if (!isApproved) {
-                                log.warn("Forbidden subscription attempt by user ID: {}", userId);
-                                throw new SecurityException("Forbidden: Your multi-tenant membership state is not approved.");
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("Unauthorized connection frame verification footprint drop: {}", e.getMessage());
-                    throw new SecurityException("Unauthorized connection frame verification footprint drop.");
+                    Claims claims =
+                            Jwts.parserBuilder()
+                                    .setSigningKey(key)
+                                    .build()
+                                    .parseClaimsJws(token)
+                                    .getBody();
+
+                    Long userId =
+                            claims.get(
+                                    "userId",
+                                    Long.class
+                            );
+
+                    // Store authenticated user in session
+                    accessor.getSessionAttributes()
+                            .put("userId", userId);
+
+                    log.info(
+                            "WebSocket authenticated successfully | userId={}",
+                            userId
+                    );
+
+                } catch (Exception ex) {
+
+                    log.error(
+                            "JWT validation failed during WebSocket CONNECT",
+                            ex
+                    );
+
+                    throw new SecurityException(
+                            "Unauthorized WebSocket connection."
+                    );
                 }
             }
+
+            // Optional debug logs
+            if (StompCommand.SUBSCRIBE.equals(command)) {
+
+                log.info(
+                        "STOMP SUBSCRIBE received | destination={}",
+                        accessor.getDestination()
+                );
+            }
+
+            if (StompCommand.SEND.equals(command)) {
+
+                log.info(
+                        "STOMP SEND received | destination={}",
+                        accessor.getDestination()
+                );
+            }
         }
+
         return message;
     }
 }
