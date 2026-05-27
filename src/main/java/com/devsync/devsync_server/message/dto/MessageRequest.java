@@ -2,15 +2,20 @@ package com.devsync.devsync_server.message.dto;
 
 import lombok.*;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class MessageRequest {
+
     private String content;
-    private String type;         // Evaluated against MessageType enum
-    private String codeLanguage; // Populated only if type is CODE
+    private String type;
+    private String codeLanguage;
     private Long senderId;
-    private Long channelId;      // Populated if sending to a channel
-    private Long recipientId;    // Populated if sending a 1:1 DM
+    private Long channelId;
+    private Long recipientId;
+    private Long replyToMessageId;
+    private List<String> attachments;
 }

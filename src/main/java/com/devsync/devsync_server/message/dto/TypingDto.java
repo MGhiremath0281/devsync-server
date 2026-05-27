@@ -9,7 +9,8 @@ import lombok.*;
 @Builder
 public class TypingDto {
     private Long channelId;
-    private Long recipientId; // For 1:1 DMs typing states
+    private Long recipientId;
+    private Long senderId;// For 1:1 DMs typing states
     private Long userId;
     private boolean isTyping;
 }

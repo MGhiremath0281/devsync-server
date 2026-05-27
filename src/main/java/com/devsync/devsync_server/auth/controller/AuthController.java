@@ -1,7 +1,9 @@
 package com.devsync.devsync_server.auth.controller;
 
-import com.devsync.devsync_server.auth.entity.User;
 import com.devsync.devsync_server.auth.dto.AuthResponse;
+import com.devsync.devsync_server.auth.dto.LoginRequest;
+import com.devsync.devsync_server.auth.dto.SignupRequest;
+import com.devsync.devsync_server.auth.entity.User;
 import com.devsync.devsync_server.auth.repository.UserRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -26,42 +28,54 @@ public class AuthController {
     private String jwtSecret;
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestParam String username, @RequestParam String email, @RequestParam String password) {
-        if (userRepository.findByEmail(email).isPresent() || userRepository.findByUsername(username).isPresent()) {
-            return ResponseEntity.badRequest().body("User identity attributes already exist inside DevSync!");
+    public ResponseEntity<?> signup(@RequestBody SignupRequest request) {
+
+        if (userRepository.findByEmail(request.getEmail()).isPresent()
+                || userRepository.findByUsername(request.getUsername()).isPresent()) {
+            return ResponseEntity.badRequest().body("User already exists");
         }
 
         User user = User.builder()
-                .username(username)
-                .email(email)
-                .password(password) // Clear text or BCrypt hashed depending on your preferences
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(request.getPassword())
                 .build();
-        User savedUser = userRepository.save(user);
 
-        String token = generateJwtToken(savedUser);
-        return ResponseEntity.ok(new AuthResponse(token, savedUser.getId(), savedUser.getUsername(), savedUser.getEmail()));
+        User savedUser = userRepository.save(user);
+        String token   = generateJwtToken(savedUser);
+
+        return ResponseEntity.ok(
+                new AuthResponse(token, savedUser.getId(), savedUser.getUsername(), savedUser.getEmail())
+        );
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestParam String email, @RequestParam String password) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Invalid identity profile matching parameters."));
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 
-        if (!user.getPassword().equals(password)) {
-            return ResponseEntity.status(401).body("Unauthorized: Credentials mismatch.");
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!user.getPassword().equals(request.getPassword())) {
+            return ResponseEntity.status(401).body("Invalid password");
         }
 
         String token = generateJwtToken(user);
-        return ResponseEntity.ok(new AuthResponse(token, user.getId(), user.getUsername(), user.getEmail()));
+
+        return ResponseEntity.ok(
+                new AuthResponse(token, user.getId(), user.getUsername(), user.getEmail())
+        );
     }
 
     private String generateJwtToken(User user) {
+
         Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        long expirationTimeInMs = 86400000; // 24 Hours validity window
+
+        long expirationTimeInMs = 86_400_000L; // 24 hours
 
         return Jwts.builder()
                 .setSubject(user.getEmail())
-                .claim("userId", user.getId()) // Injecting the user ID into the token structure
+                .claim("firstName", user.getUsername())
+                .claim("userId", (long) user.getId())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTimeInMs))
                 .signWith(key, SignatureAlgorithm.HS256)
