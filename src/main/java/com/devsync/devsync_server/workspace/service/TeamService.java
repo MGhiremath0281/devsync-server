@@ -19,18 +19,9 @@ public class TeamService {
     private final TeamRepository teamRepository;
     private final TeamMembershipRepository membershipRepository;
 
-    public Team createTeam(
-            Long userId,
-            String name,
-            boolean isPrivate
-    ) {
-
+    public Team createTeam(Long userId, String name, boolean isPrivate) {
         if (teamRepository.findByName(name).isPresent()) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Workspace name already claimed!"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Workspace name already claimed!");
         }
 
         Team team = Team.builder()
@@ -50,134 +41,84 @@ public class TeamService {
                 .build();
 
         membershipRepository.save(membership);
-
         return savedTeam;
     }
 
     public List<Team> getMyTeams(Long userId) {
-
-        List<TeamMembership> memberships =
-                membershipRepository.findByUserIdAndStatus(
-                        userId,
-                        "APPROVED"
-                );
-
-        List<Long> teamIds = memberships.stream()
-                .map(TeamMembership::getTeamId)
-                .toList();
-
+        List<TeamMembership> memberships = membershipRepository.findByUserIdAndStatus(userId, "APPROVED");
+        List<Long> teamIds = memberships.stream().map(TeamMembership::getTeamId).toList();
         return teamRepository.findAllById(teamIds);
     }
 
     public Team getTeam(Long teamId) {
-
         return teamRepository.findById(teamId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Team not found"
-                        )
-                );
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
     }
 
     public Team getTeamById(Long teamId) {
-
         return teamRepository.findById(teamId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Workspace not found"
-                        )
-                );
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace not found"));
     }
 
-    public boolean isUserMember(
-            Long userId,
-            Long teamId
-    ) {
-
-        return membershipRepository
-                .findByUserIdAndTeamId(userId, teamId)
-                .map(member ->
-                        member.getStatus()
-                                .equals("APPROVED")
-                )
+    public boolean isUserMember(Long userId, Long teamId) {
+        return membershipRepository.findByUserIdAndTeamId(userId, teamId)
+                .map(member -> member.getStatus().equals("APPROVED"))
                 .orElse(false);
     }
 
     public long getTotalMembers(Long teamId) {
-
-        return membershipRepository
-                .findByTeamIdAndStatus(
-                        teamId,
-                        "APPROVED"
-                )
-                .size();
+        return membershipRepository.findByTeamIdAndStatus(teamId, "APPROVED").size();
     }
 
-    public TeamMembership joinTeam(
-            Long userId,
-            Long teamId
-    ) {
-
+    public TeamMembership joinTeam(Long userId, Long teamId) {
         Team team = getTeamById(teamId);
-
-        if (membershipRepository
-                .findByUserIdAndTeamId(userId, teamId)
-                .isPresent()) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Already joined"
-            );
+        if (membershipRepository.findByUserIdAndTeamId(userId, teamId).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Already joined");
         }
 
-        String status = team.isPrivate()
-                ? "PENDING"
-                : "APPROVED";
-
+        String status = team.isPrivate() ? "PENDING" : "APPROVED";
         TeamMembership membership = TeamMembership.builder()
                 .userId(userId)
                 .teamId(teamId)
                 .role("DEVELOPER")
                 .status(status)
-                .joinedAt(
-                        status.equals("APPROVED")
-                                ? LocalDateTime.now()
-                                : null
-                )
+                .joinedAt(status.equals("APPROVED") ? LocalDateTime.now() : null)
                 .build();
 
         return membershipRepository.save(membership);
     }
 
-    public TeamMembership approveMember(
-            Long userId,
-            Long requestId
-    ) {
-
-        TeamMembership membership =
-                membershipRepository.findById(requestId)
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.BAD_REQUEST,
-                                        "Invalid requestId"
-                                )
-                        );
+    public TeamMembership approveMember(Long userId, Long requestId) {
+        TeamMembership membership = membershipRepository.findById(requestId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid requestId"));
 
         Team team = getTeamById(membership.getTeamId());
-
         if (!team.getOwnerId().equals(userId)) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Only team lead can approve"
-            );
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only team lead can approve");
         }
 
         membership.setStatus("APPROVED");
         membership.setJoinedAt(LocalDateTime.now());
-
         return membershipRepository.save(membership);
+    }
+
+    public void removeMember(Long requesterId, Long teamId, Long memberUserIdToRemove) {
+        Team team = getTeamById(teamId);
+
+        // Authorization: Only the owner can remove someone else.
+        // Members can also remove themselves if needed.
+        if (!team.getOwnerId().equals(requesterId) && !requesterId.equals(memberUserIdToRemove)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized to remove members");
+        }
+
+        TeamMembership membership = membershipRepository.findByUserIdAndTeamId(memberUserIdToRemove, teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        // Prevent removing the team owner
+        if (membership.getRole().equals("LEAD")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove the team owner");
+        }
+
+        membershipRepository.delete(membership);
     }
 }
