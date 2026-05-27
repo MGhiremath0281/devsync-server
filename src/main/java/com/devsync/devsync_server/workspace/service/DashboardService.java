@@ -49,7 +49,6 @@ public class DashboardService {
             primaryTeams = new ArrayList<>();
         }
 
-        // Map Team entities → WorkspaceSummary DTOs (Safe from LazyInitializationException)
         List<WorkspaceSummary> workspaceSummaries = primaryTeams.stream()
                 .filter(t -> t != null)
                 .map(t -> WorkspaceSummary.builder()
@@ -79,7 +78,6 @@ public class DashboardService {
             }
         }
 
-        // Fetch raw activity logs safely
         List<UserDashboardActivity> rawActivities = activityRepository
                 .findByUserIdOrderByLastAccessedAtDesc(userId, PageRequest.of(0, 5));
 
@@ -89,7 +87,6 @@ public class DashboardService {
             frequentActivities = rawActivities.stream()
                     .filter(act -> act != null)
                     .map(act -> {
-                        // Protect against NullPointerExceptions if fields are null in DB
                         String entityType = act.getEntityType() != null ? act.getEntityType() : "UNKNOWN";
                         String displayTitle = act.getEntityName() != null ? act.getEntityName() : "Untitled Item";
 
@@ -146,12 +143,10 @@ public class DashboardService {
                 .workspace(workspaceSummary)
                 .channels(channels)
                 .totalChannels(channels.size())
-                .totalMembers((int) teamService.getTotalMembers(teamId))
+                .totalMembers((int) teamService.getTotalMembers(teamId)) // Works perfectly now!
                 .formattedDate(today())
                 .build();
     }
-
-    // ── trackUserAccess ───────────────────────────────────────────────────────
 
     @Transactional
     public void trackUserAccess(Long userId, Long entityId, String entityName, String entityType) {

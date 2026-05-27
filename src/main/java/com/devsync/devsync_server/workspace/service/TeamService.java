@@ -1,5 +1,8 @@
 package com.devsync.devsync_server.workspace.service;
 
+import com.devsync.devsync_server.auth.entity.User;
+import com.devsync.devsync_server.auth.repository.UserRepository;
+import com.devsync.devsync_server.workspace.dto.TeamMemberDTO;
 import com.devsync.devsync_server.workspace.model.Team;
 import com.devsync.devsync_server.workspace.model.TeamMembership;
 import com.devsync.devsync_server.workspace.repository.TeamMembershipRepository;
@@ -18,6 +21,7 @@ public class TeamService {
 
     private final TeamRepository teamRepository;
     private final TeamMembershipRepository membershipRepository;
+    private final UserRepository userRepository;
 
     public Team createTeam(Long userId, String name, boolean isPrivate) {
         if (teamRepository.findByName(name).isPresent()) {
@@ -66,8 +70,28 @@ public class TeamService {
                 .orElse(false);
     }
 
+    public List<TeamMemberDTO> getTeamMembersWithNames(Long teamId) {
+        return membershipRepository.findByTeamId(teamId).stream().map(m -> {
+            User user = userRepository.findById(m.getUserId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+            return new TeamMemberDTO(m.getUserId(), user.getUsername(), m.getRole(), m.getStatus());
+        }).toList();
+    }
+
+    public List<TeamMembership> getTeamMembers(Long teamId) {
+        getTeamById(teamId);
+        return membershipRepository.findByTeamId(teamId);
+    }
+
+    /**
+     * Fixes the "Cannot resolve method 'getTotalMembers'" compilation error.
+     * Counts only active, approved members of the workspace.
+     */
     public long getTotalMembers(Long teamId) {
-        return membershipRepository.findByTeamIdAndStatus(teamId, "APPROVED").size();
+        return membershipRepository.findByTeamId(teamId).stream()
+                .filter(membership -> "APPROVED".equals(membership.getStatus()))
+                .count();
     }
 
     public TeamMembership joinTeam(Long userId, Long teamId) {
@@ -105,8 +129,6 @@ public class TeamService {
     public void removeMember(Long requesterId, Long teamId, Long memberUserIdToRemove) {
         Team team = getTeamById(teamId);
 
-        // Authorization: Only the owner can remove someone else.
-        // Members can also remove themselves if needed.
         if (!team.getOwnerId().equals(requesterId) && !requesterId.equals(memberUserIdToRemove)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized to remove members");
         }
@@ -114,7 +136,6 @@ public class TeamService {
         TeamMembership membership = membershipRepository.findByUserIdAndTeamId(memberUserIdToRemove, teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        // Prevent removing the team owner
         if (membership.getRole().equals("LEAD")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove the team owner");
         }
