@@ -13,8 +13,20 @@ public class WebRTCSignalingService {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    public void handleOffer(MeetingSignalDto signal) {
+    public void handleJoin(MeetingSignalDto signal) {
+        log.info(
+                "User [{}] initialized a JOIN connection frame for meeting [{}]",
+                signal.getSenderId(),
+                signal.getMeetingId()
+        );
 
+        messagingTemplate.convertAndSend(
+                "/topic/meeting/" + signal.getMeetingId() + "/signals",
+                signal
+        );
+    }
+
+    public void handleOffer(MeetingSignalDto signal) {
         log.info(
                 "WebRTC OFFER from user {} for meeting {}",
                 signal.getSenderId(),
@@ -28,7 +40,6 @@ public class WebRTCSignalingService {
     }
 
     public void handleAnswer(MeetingSignalDto signal) {
-
         log.info(
                 "WebRTC ANSWER from user {} for meeting {}",
                 signal.getSenderId(),
@@ -42,7 +53,6 @@ public class WebRTCSignalingService {
     }
 
     public void handleIceCandidate(MeetingSignalDto signal) {
-
         log.info(
                 "ICE Candidate from user {} for meeting {}",
                 signal.getSenderId(),
