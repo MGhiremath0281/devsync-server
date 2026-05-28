@@ -7,6 +7,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/meetings")
 @RequiredArgsConstructor
+@Slf4j
 public class MeetingController {
 
     private final MeetingService meetingService;
@@ -31,17 +33,20 @@ public class MeetingController {
             @PathVariable Long teamId,
             @RequestBody CreateMeetingRequest request
     ) {
+        log.info("Received POST /api/meetings/create/{} - Channel ID: {}, Type: {}",
+                teamId, request.getChannelId(), request.getType());
 
         Long userId = validateAndGetUserId(tokenHeader);
+        log.debug("Authorized user ID [{}] for meeting creation", userId);
 
-        MeetingResponse response =
-                meetingService.createMeeting(
-                        userId,
-                        teamId,
-                        request.getChannelId(),
-                        request.getType()
-                );
+        MeetingResponse response = meetingService.createMeeting(
+                userId,
+                teamId,
+                request.getChannelId(),
+                request.getType()
+        );
 
+        log.info("Successfully processed meeting creation. Meeting ID: [{}]", response.getMeetingId());
         return ResponseEntity.ok(response);
     }
 
@@ -50,15 +55,14 @@ public class MeetingController {
             @RequestHeader("Authorization") String tokenHeader,
             @PathVariable Long meetingId
     ) {
+        log.info("Received POST /api/meetings/join/{}", meetingId);
 
         Long userId = validateAndGetUserId(tokenHeader);
+        log.debug("Authorized user ID [{}] requesting to join meeting [{}]", userId, meetingId);
 
-        MeetingResponse response =
-                meetingService.joinMeeting(
-                        userId,
-                        meetingId
-                );
+        MeetingResponse response = meetingService.joinMeeting(userId, meetingId);
 
+        log.info("User [{}] successfully joined meeting [{}]", userId, meetingId);
         return ResponseEntity.ok(response);
     }
 
@@ -67,14 +71,14 @@ public class MeetingController {
             @RequestHeader("Authorization") String tokenHeader,
             @PathVariable Long meetingId
     ) {
+        log.info("Received POST /api/meetings/leave/{}", meetingId);
 
         Long userId = validateAndGetUserId(tokenHeader);
+        log.debug("Authorized user ID [{}] requesting to leave meeting [{}]", userId, meetingId);
 
-        meetingService.leaveMeeting(
-                userId,
-                meetingId
-        );
+        meetingService.leaveMeeting(userId, meetingId);
 
+        log.info("User [{}] successfully processed leave request for meeting [{}]", userId, meetingId);
         return ResponseEntity.noContent().build();
     }
 
@@ -84,16 +88,13 @@ public class MeetingController {
             @PathVariable Long meetingId,
             @RequestParam boolean enabled
     ) {
+        log.info("Received POST /api/meetings/{}/mic?enabled={}", meetingId, enabled);
 
         Long userId = validateAndGetUserId(tokenHeader);
 
-        MeetingResponse response =
-                meetingService.toggleMic(
-                        userId,
-                        meetingId,
-                        enabled
-                );
+        MeetingResponse response = meetingService.toggleMic(userId, meetingId, enabled);
 
+        log.info("Mic state successfully toggled to [{}] for user [{}] in meeting [{}]", enabled, userId, meetingId);
         return ResponseEntity.ok(response);
     }
 
@@ -103,16 +104,13 @@ public class MeetingController {
             @PathVariable Long meetingId,
             @RequestParam boolean enabled
     ) {
+        log.info("Received POST /api/meetings/{}/camera?enabled={}", meetingId, enabled);
 
         Long userId = validateAndGetUserId(tokenHeader);
 
-        MeetingResponse response =
-                meetingService.toggleCamera(
-                        userId,
-                        meetingId,
-                        enabled
-                );
+        MeetingResponse response = meetingService.toggleCamera(userId, meetingId, enabled);
 
+        log.info("Camera state successfully toggled to [{}] for user [{}] in meeting [{}]", enabled, userId, meetingId);
         return ResponseEntity.ok(response);
     }
 
@@ -122,41 +120,55 @@ public class MeetingController {
             @PathVariable Long meetingId,
             @RequestParam boolean enabled
     ) {
+        log.info("Received POST /api/meetings/{}/screen-share?enabled={}", meetingId, enabled);
 
         Long userId = validateAndGetUserId(tokenHeader);
 
-        MeetingResponse response =
-                meetingService.toggleScreenShare(
-                        userId,
-                        meetingId,
-                        enabled
-                );
+        MeetingResponse response = meetingService.toggleScreenShare(userId, meetingId, enabled);
 
+        log.info("Screen share state successfully toggled to [{}] for user [{}] in meeting [{}]", enabled, userId, meetingId);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/ongoing")
     public ResponseEntity<List<MeetingResponse>> getOngoingMeetings() {
+        log.debug("Received GET /api/meetings/ongoing");
 
-        return ResponseEntity.ok(
-                meetingService.getOngoingMeetings()
-        );
+        List<MeetingResponse> responses = meetingService.getOngoingMeetings();
+
+        log.debug("Returning {} ongoing meeting(s)", responses.size());
+        return ResponseEntity.ok(responses);
     }
 
     private Long validateAndGetUserId(String header) {
+        log.trace("Validating Authorization token header");
 
-        String token = header.substring(7);
+        try {
+            if (header == null || !header.startsWith("Bearer ")) {
+                log.warn("Authentication failed: Malformed or missing Authorization header");
+                throw new IllegalArgumentException("Invalid Authorization header format");
+            }
 
-        Key key = Keys.hmacShaKeyFor(
-                jwtSecret.getBytes(StandardCharsets.UTF_8)
-        );
+            String token = header.substring(7);
 
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+            Key key = Keys.hmacShaKeyFor(
+                    jwtSecret.getBytes(StandardCharsets.UTF_8)
+            );
 
-        return claims.get("userId", Long.class);
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            Long userId = claims.get("userId", Long.class);
+            log.trace("Token parsed successfully for user ID [{}]", userId);
+            return userId;
+
+        } catch (Exception e) {
+            log.warn("JWT Verification failed: {}", e.getMessage());
+            // Re-throwing exception to let Spring Boot's Global Exception Handler or Filter chain handle HTTP response status code
+            throw e;
+        }
     }
 }
