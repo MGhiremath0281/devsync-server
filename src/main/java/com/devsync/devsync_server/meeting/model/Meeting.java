@@ -18,7 +18,7 @@ public class Meeting {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "channel_id", nullable = false)
+    @Column(name = "channel_id", nullable = true)
     private Long channelId;
 
     @Column(name = "created_by", nullable = false)

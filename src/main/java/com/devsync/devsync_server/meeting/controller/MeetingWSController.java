@@ -16,16 +16,24 @@ public class MeetingWSController {
     private final SignalDispatcher signalDispatcher;
 
     @MessageMapping("/meeting.signal")
-    public void handleSignal(
-            @Payload MeetingSignalDto signal
-    ) {
+    public void handleSignal(@Payload MeetingSignalDto signal) {
+        if (log.isDebugEnabled()) {
+            log.debug("Received WebSocket signal - Type: [{}], Meeting: [{}]",
+                    signal.getSignalType(),
+                    signal.getMeetingId()
+            );
+        }
 
-        log.info(
-                "Received signal type {} for meeting {}",
-                signal.getSignalType(),
-                signal.getMeetingId()
-        );
+        try {
+            signalDispatcher.dispatch(signal);
 
-        signalDispatcher.dispatch(signal);
+            log.trace("Successfully dispatched signal [{}] for meeting [{}]",
+                    signal.getSignalType(), signal.getMeetingId());
+
+        } catch (Exception e) {
+            log.error("Failed to dispatch WebSocket signal [{}] for meeting [{}]. Error: {}",
+                    signal.getSignalType(), signal.getMeetingId(), e.getMessage(), e);
+            throw e;
+        }
     }
 }
