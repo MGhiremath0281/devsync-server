@@ -20,10 +20,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         jdbc:
           time_zone: UTC
 
@@ -32,6 +32,11 @@ management:
     web:
       exposure:
         include: mappings
+logging:
+  level:
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF
+    org.hibernate.type.descriptor.sql: OFF
 
 jwt:
   secret: "DevSyncSuperSecretSecureSigningKey2026EnterpriseEdition"
