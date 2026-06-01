@@ -59,7 +59,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
+                        .requestMatchers("/api/v1/tasks/**").permitAll()
                         // Switch this to permitAll temporarily to isolate if Spring Security is the blocker
                         .anyRequest().permitAll()
                 );
