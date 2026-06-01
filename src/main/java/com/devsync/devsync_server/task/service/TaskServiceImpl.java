@@ -16,12 +16,14 @@ import com.devsync.devsync_server.task.model.TaskStatus;
 import com.devsync.devsync_server.task.repository.TaskActivityRepository;
 import com.devsync.devsync_server.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -33,6 +35,8 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskResponse createTask(CreateTaskRequest request) {
+        log.info("Creating new task with title: '{}' for team ID: {}", request.getTitle(), request.getTeamId());
+
         Task task = Task.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -46,12 +50,15 @@ public class TaskServiceImpl implements TaskService {
 
         task = taskRepository.save(task);
         logActivity(task, request.getReporterId(), "TASK_CREATED", null, task.getTitle());
+
+        log.info("Successfully created task with ID: {}", task.getId());
         return taskMapper.toTaskResponse(task);
     }
 
     @Override
     @Transactional(readOnly = true)
     public TaskResponse getTaskById(Long taskId) {
+        log.debug("Fetching task details for ID: {}", taskId);
         Task task = findTaskOrThrow(taskId);
         return taskMapper.toTaskResponse(task);
     }
@@ -59,23 +66,27 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public List<TaskSummaryResponse> getTasksByTeam(Long teamId) {
+        log.debug("Fetching tasks for team ID: {}", teamId);
         return taskMapper.toTaskSummaryList(taskRepository.findByTeamId(teamId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TaskSummaryResponse> getTasksByAssignee(Long assigneeId) {
+        log.debug("Fetching tasks for assignee ID: {}", assigneeId);
         return taskMapper.toTaskSummaryList(taskRepository.findByAssigneeId(assigneeId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TaskSummaryResponse> getTasksByTeamAndStatus(Long teamId, TaskStatus status) {
+        log.debug("Fetching tasks for team ID: {} with status: {}", teamId, status);
         return taskMapper.toTaskSummaryList(taskRepository.findByTeamIdAndStatus(teamId, status));
     }
 
     @Override
     public TaskResponse updateTask(Long taskId, UpdateTaskRequest request) {
+        log.info("Updating fields for task ID: {}", taskId);
         Task task = findTaskOrThrow(taskId);
 
         if (request.getTitle() != null) task.setTitle(request.getTitle());
@@ -91,11 +102,12 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTaskOrThrow(taskId);
         String oldAssignee = task.getAssigneeId() != null ? task.getAssigneeId().toString() : "unassigned";
 
+        log.info("Assigning task ID: {} from {} to user ID: {}", taskId, oldAssignee, request.getAssigneeId());
+
         task.setAssigneeId(request.getAssigneeId());
         task = taskRepository.save(task);
 
-        logActivity(task, request.getActorId(), "ASSIGNED",
-                oldAssignee, request.getAssigneeId().toString());
+        logActivity(task, request.getActorId(), "ASSIGNED", oldAssignee, request.getAssigneeId().toString());
         return taskMapper.toTaskResponse(task);
     }
 
@@ -104,23 +116,27 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTaskOrThrow(taskId);
         String oldStatus = task.getStatus().name();
 
+        log.info("Changing status of task ID: {} from {} to {}", taskId, oldStatus, request.getStatus());
+
         task.setStatus(request.getStatus());
         task = taskRepository.save(task);
 
-        logActivity(task, request.getActorId(), "STATUS_CHANGED",
-                oldStatus, request.getStatus().name());
+        logActivity(task, request.getActorId(), "STATUS_CHANGED", oldStatus, request.getStatus().name());
         return taskMapper.toTaskResponse(task);
     }
 
     @Override
     public void deleteTask(Long taskId) {
+        log.info("Attempting to delete task ID: {}", taskId);
         Task task = findTaskOrThrow(taskId);
         taskRepository.delete(task);
+        log.info("Successfully deleted task ID: {}", taskId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TaskActivityResponse> getTaskActivities(Long taskId) {
+        log.debug("Fetching activity history for task ID: {}", taskId);
         findTaskOrThrow(taskId);
         return taskActivityRepository.findByTaskIdOrderByCreatedAtDesc(taskId)
                 .stream()
@@ -130,11 +146,14 @@ public class TaskServiceImpl implements TaskService {
 
     private Task findTaskOrThrow(Long taskId) {
         return taskRepository.findById(taskId)
-                .orElseThrow(() -> new TaskNotFoundException(taskId));
+                .orElseThrow(() -> {
+                    log.warn("Task lookup failed! Task with ID {} not found.", taskId);
+                    return new TaskNotFoundException(taskId);
+                });
     }
 
-    private void logActivity(Task task, Long actorId, String action,
-                             String oldValue, String newValue) {
+    private void logActivity(Task task, Long actorId, String action, String oldValue, String newValue) {
+        log.debug("Recording activity log -> Task ID: {}, Action: {}, Actor: {}", task.getId(), action, actorId);
         TaskActivity activity = TaskActivity.builder()
                 .task(task)
                 .actorId(actorId)

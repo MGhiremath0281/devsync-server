@@ -11,12 +11,14 @@ import com.devsync.devsync_server.task.repository.TaskActivityRepository;
 import com.devsync.devsync_server.task.repository.TaskCommentRepository;
 import com.devsync.devsync_server.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -29,8 +31,13 @@ public class TaskCommentServiceImpl implements TaskCommentService {
 
     @Override
     public TaskCommentResponse addComment(Long taskId, CreateCommentRequest request) {
+        log.info("Attempting to add comment to task ID: {} by user ID: {}", taskId, request.getAuthorId());
+
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new TaskNotFoundException(taskId));
+                .orElseThrow(() -> {
+                    log.warn("Failed to add comment. Task with ID {} not found.", taskId);
+                    return new TaskNotFoundException(taskId);
+                });
 
         TaskComment comment = TaskComment.builder()
                 .task(task)
@@ -39,7 +46,7 @@ public class TaskCommentServiceImpl implements TaskCommentService {
                 .build();
 
         comment = taskCommentRepository.save(comment);
-
+        log.debug("Comment saved successfully with ID: {}", comment.getId());
         TaskActivity activity = TaskActivity.builder()
                 .task(task)
                 .actorId(request.getAuthorId())
@@ -47,6 +54,7 @@ public class TaskCommentServiceImpl implements TaskCommentService {
                 .newValue(request.getContent())
                 .build();
         taskActivityRepository.save(activity);
+        log.debug("Recorded activity log for comment addition on task ID: {}", taskId);
 
         return taskMapper.toCommentResponse(comment);
     }
@@ -54,6 +62,7 @@ public class TaskCommentServiceImpl implements TaskCommentService {
     @Override
     @Transactional(readOnly = true)
     public List<TaskCommentResponse> getCommentsByTask(Long taskId) {
+        log.debug("Fetching comments for task ID: {}", taskId);
         return taskCommentRepository.findByTaskIdOrderByCreatedAtAsc(taskId)
                 .stream()
                 .map(taskMapper::toCommentResponse)
@@ -62,6 +71,13 @@ public class TaskCommentServiceImpl implements TaskCommentService {
 
     @Override
     public void deleteComment(Long commentId) {
-        taskCommentRepository.deleteById(commentId);
+        log.info("Attempting to delete comment ID: {}", commentId);
+
+        if (taskCommentRepository.existsById(commentId)) {
+            taskCommentRepository.deleteById(commentId);
+            log.info("Successfully deleted comment ID: {}", commentId);
+        } else {
+            log.warn("Execution skip: Comment ID {} did not exist or was already deleted.", commentId);
+        }
     }
 }
