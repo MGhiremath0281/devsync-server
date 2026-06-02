@@ -12,7 +12,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CustomUserPrincipal implements UserDetails {
 
-    private final User user;
+    protected final User user;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
