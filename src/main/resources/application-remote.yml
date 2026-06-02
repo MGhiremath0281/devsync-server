@@ -59,3 +59,8 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET}
+
+app:
+  frontend:
+    base-url: ${FRONTEND_URL:http://localhost:5173}
+    oauth-success-path: /oauth-success
