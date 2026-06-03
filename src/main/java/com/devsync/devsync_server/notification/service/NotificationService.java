@@ -1,5 +1,6 @@
 package com.devsync.devsync_server.notification.service;
 
+import com.devsync.devsync_server.notification.controller.NotificationController;
 import com.devsync.devsync_server.notification.dto.CreateNotificationRequest;
 import com.devsync.devsync_server.notification.dto.NotificationResponse;
 import com.devsync.devsync_server.notification.mapper.NotificationMapper;
@@ -33,8 +34,13 @@ public class NotificationService {
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        log.info("Notification created successfully. notificationId={}", saved.getId());
-        return notificationMapper.toResponse(saved);
+        NotificationResponse response = notificationMapper.toResponse(saved);
+
+        // Push to SSE stream immediately after saving to DB
+        NotificationController.sendRealTimeNotification(saved.getUserId(), response);
+
+        log.info("Notification created and pushed to SSE. notificationId={}", saved.getId());
+        return response;
     }
 
     @Transactional(readOnly = true)
