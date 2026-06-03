@@ -7,6 +7,7 @@ import com.devsync.devsync_server.workspace.service.TeamService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -25,13 +26,9 @@ public class TeamController {
 
     private final TeamService teamService;
 
-    @Value("${jwt.secret:YOUR_SUPER_SECRET_KEY_THAT_IS_AT_LEAST_256_BITS_LONG_FOR_HMAC}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
-    /**
-     * Updated Endpoint: Returns members list, or a clean fallback if authorization fails
-     * to keep the browser dev tools completely clean of red network lines.
-     */
     @GetMapping("/{teamId}/members")
     public ResponseEntity<List<TeamMemberDTO>> getTeamMembers(
             @RequestHeader(value = "Authorization", required = false) String token,
@@ -45,8 +42,21 @@ public class TeamController {
             validateAndGetUserId(token);
             return ResponseEntity.ok(teamService.getTeamMembersWithNames(teamId));
         } catch (Exception e) {
-            // Returns empty list instead of crashing with a browser-logged 403/500
             return ResponseEntity.ok(Collections.emptyList());
+        }
+    }
+
+    @PostMapping("/{teamId}/members")
+    public ResponseEntity<?> addMember(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long teamId,
+            @RequestBody AddMemberRequest request) {
+        try {
+            Long requesterId = validateAndGetUserId(token);
+            TeamMembership membership = teamService.addMember(requesterId, teamId, request.getEmail());
+            return ResponseEntity.ok(membership);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 
@@ -65,12 +75,17 @@ public class TeamController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<Team> createTeam(@RequestHeader("Authorization") String token, @RequestParam String name, @RequestParam boolean isPrivate) {
+    public ResponseEntity<Team> createTeam(
+            @RequestHeader("Authorization") String token,
+            @RequestParam String name,
+            @RequestParam boolean isPrivate) {
         return ResponseEntity.ok(teamService.createTeam(validateAndGetUserId(token), name, isPrivate));
     }
 
     @PostMapping("/join/{teamId}")
-    public ResponseEntity<TeamMembership> joinTeam(@RequestHeader("Authorization") String token, @PathVariable Long teamId) {
+    public ResponseEntity<TeamMembership> joinTeam(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long teamId) {
         return ResponseEntity.ok(teamService.joinTeam(validateAndGetUserId(token), teamId));
     }
 
@@ -79,9 +94,6 @@ public class TeamController {
         return ResponseEntity.ok(teamService.getMyTeams(validateAndGetUserId(token)));
     }
 
-    /**
-     * Secure Token Extractor
-     */
     private Long validateAndGetUserId(String header) {
         if (header == null || !header.startsWith("Bearer ")) {
             throw new IllegalArgumentException("Invalid or missing Authorization header");
@@ -94,5 +106,10 @@ public class TeamController {
                 .parseClaimsJws(token)
                 .getBody();
         return claims.get("userId", Long.class);
+    }
+
+    @Data
+    public static class AddMemberRequest {
+        private String email;
     }
 }
