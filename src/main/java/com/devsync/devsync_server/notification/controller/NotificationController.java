@@ -7,13 +7,16 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -22,8 +25,42 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
+    private static final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
+
     @Value("${jwt.secret}")
     private String jwtSecret;
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamNotifications(@RequestParam("token") String token) {
+        Long userId = validateAndGetUserId("Bearer " + token);
+
+        SseEmitter emitter = new SseEmitter(600000L);
+        emitters.put(userId, emitter);
+
+        emitter.onCompletion(() -> emitters.remove(userId));
+        emitter.onTimeout(() -> emitters.remove(userId));
+        emitter.onError((e) -> emitters.remove(userId));
+        try {
+            emitter.send(SseEmitter.event().name("INIT").data("Connected"));
+        } catch (Exception e) {
+            emitters.remove(userId);
+        }
+
+        return emitter;
+    }
+
+    public static void sendRealTimeNotification(Long userId, NotificationResponse notification) {
+        SseEmitter emitter = emitters.get(userId);
+        if (emitter != null) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("NEW_NOTIFICATION")
+                        .data(notification));
+            } catch (Exception e) {
+                emitters.remove(userId);
+            }
+        }
+    }
 
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getNotifications(@RequestHeader("Authorization") String token) {
