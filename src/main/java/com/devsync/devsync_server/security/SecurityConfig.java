@@ -84,6 +84,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/notifications/stream").permitAll()
                         .requestMatchers("/oauth2/**").permitAll()
                         .requestMatchers("/login/**").permitAll()
                         .requestMatchers("/ws/**", "/ws-provider/**", "/ws-raw/**").permitAll()
