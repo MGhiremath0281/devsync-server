@@ -21,11 +21,18 @@ public class MeetingSocketHandler {
                         event.getMessage()
                 );
 
-        String sessionId = headerAccessor.getSessionId();
+        Long userId = null;
+
+        if (headerAccessor.getSessionAttributes() != null) {
+            userId = (Long) headerAccessor
+                    .getSessionAttributes()
+                    .get("userId");
+        }
 
         log.info(
-                "Meeting websocket connected. SessionId={}",
-                sessionId
+                "CONNECT | sessionId={} | userId={}",
+                headerAccessor.getSessionId(),
+                userId
         );
     }
 
@@ -39,11 +46,18 @@ public class MeetingSocketHandler {
                         event.getMessage()
                 );
 
-        String sessionId = headerAccessor.getSessionId();
+        Long userId = null;
+
+        if (headerAccessor.getSessionAttributes() != null) {
+            userId = (Long) headerAccessor
+                    .getSessionAttributes()
+                    .get("userId");
+        }
 
         log.info(
-                "Meeting websocket disconnected. SessionId={}",
-                sessionId
+                "DISCONNECT | sessionId={} | userId={}",
+                headerAccessor.getSessionId(),
+                userId
         );
     }
 }
