@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -29,109 +31,68 @@ public class WebSocketInterceptor implements ChannelInterceptor {
     private String jwtSecret;
 
     @Override
-    public Message<?> preSend(
-            Message<?> message,
-            MessageChannel channel
-    ) {
+    public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        StompHeaderAccessor accessor =
-                MessageHeaderAccessor.getAccessor(
-                        message,
-                        StompHeaderAccessor.class
-                );
-
-        if (accessor != null &&
-                accessor.getCommand() != null) {
-
-            StompCommand command =
-                    accessor.getCommand();
+        if (accessor != null && accessor.getCommand() != null) {
+            StompCommand command = accessor.getCommand();
 
             // ONLY validate during CONNECT
             if (StompCommand.CONNECT.equals(command)) {
+                log.info("STOMP CONNECT frame received");
 
-                log.info(
-                        "STOMP CONNECT frame received"
-                );
+                String authHeader = accessor.getFirstNativeHeader("Authorization");
 
-                String authHeader =
-                        accessor.getFirstNativeHeader(
-                                "Authorization"
-                        );
-
-                if (authHeader == null ||
-                        !authHeader.startsWith("Bearer ")) {
-
-                    log.error(
-                            "Access Denied: Missing JWT token during WebSocket CONNECT"
-                    );
-
-                    throw new SecurityException(
-                            "Access Denied: Token missing."
-                    );
+                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                    log.error("Access Denied: Missing JWT token during WebSocket CONNECT");
+                    throw new SecurityException("Access Denied: Token missing.");
                 }
 
-                String token =
-                        authHeader.substring(7);
+                String token = authHeader.substring(7);
 
                 try {
+                    Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
-                    Key key =
-                            Keys.hmacShaKeyFor(
-                                    jwtSecret.getBytes(
-                                            StandardCharsets.UTF_8
-                                    )
-                            );
+                    Claims claims = Jwts.parserBuilder()
+                            .setSigningKey(key)
+                            .build()
+                            .parseClaimsJws(token)
+                            .getBody();
 
-                    Claims claims =
-                            Jwts.parserBuilder()
-                                    .setSigningKey(key)
-                                    .build()
-                                    .parseClaimsJws(token)
-                                    .getBody();
+                    Object userIdClaim = claims.get("userId");
+                    Long userId = null;
+                    if (userIdClaim instanceof Number) {
+                        userId = ((Number) userIdClaim).longValue();
+                    } else if (userIdClaim instanceof String) {
+                        userId = Long.parseLong((String) userIdClaim);
+                    }
 
-                    Long userId =
-                            claims.get(
-                                    "userId",
-                                    Long.class
-                            );
+                    if (userId == null) {
+                        throw new IllegalArgumentException("userId claim missing or invalid in JWT token");
+                    }
 
-                    // Store authenticated user in session
-                    accessor.getSessionAttributes()
-                            .put("userId", userId);
+                    Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                    if (sessionAttributes == null) {
+                        sessionAttributes = new HashMap<>();
+                        accessor.setSessionAttributes(sessionAttributes);
+                    }
 
-                    log.info(
-                            "WebSocket authenticated successfully | userId={}",
-                            userId
-                    );
+                    // Store authenticated user in session for PresenceSocketHandler
+                    sessionAttributes.put("userId", userId);
+
+                    log.info("WebSocket authenticated successfully | userId={}", userId);
 
                 } catch (Exception ex) {
-
-                    log.error(
-                            "JWT validation failed during WebSocket CONNECT",
-                            ex
-                    );
-
-                    throw new SecurityException(
-                            "Unauthorized WebSocket connection."
-                    );
+                    log.error("JWT validation failed during WebSocket CONNECT: {}", ex.getMessage());
+                    throw new SecurityException("Unauthorized WebSocket connection.");
                 }
             }
-
-            // Optional debug logs
             if (StompCommand.SUBSCRIBE.equals(command)) {
-
-                log.info(
-                        "STOMP SUBSCRIBE received | destination={}",
-                        accessor.getDestination()
-                );
+                log.info("STOMP SUBSCRIBE received | destination={}", accessor.getDestination());
             }
 
             if (StompCommand.SEND.equals(command)) {
-
-                log.info(
-                        "STOMP SEND received | destination={}",
-                        accessor.getDestination()
-                );
+                log.info("STOMP SEND received | destination={}", accessor.getDestination());
             }
         }
 

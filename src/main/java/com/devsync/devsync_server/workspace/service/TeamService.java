@@ -83,12 +83,28 @@ public class TeamService {
 
     @Transactional(readOnly = true)
     public List<TeamMemberDTO> getTeamMembersWithNames(Long teamId) {
-        return membershipRepository.findByTeamId(teamId).stream().map(m -> {
-            User user = userRepository.findById(m.getUserId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-            return new TeamMemberDTO(m.getUserId(), user.getUsername(), m.getRole(), m.getStatus());
-        }).toList();
+        long start = System.currentTimeMillis();
+
+        List<TeamMemberDTO> result =
+                membershipRepository.findTeamMembers(teamId)
+                        .stream()
+                        .map(member ->
+                                new TeamMemberDTO(
+                                        member.userId(),
+                                        member.userName(),
+                                        member.role(),
+                                        member.status()
+                                )
+                        )
+                        .toList();
+
+        log.info(
+                "getTeamMembersWithNames took {} ms",
+                System.currentTimeMillis() - start
+        );
+
+        return result;
     }
 
     @Transactional(readOnly = true)
