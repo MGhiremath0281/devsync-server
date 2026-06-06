@@ -5,74 +5,102 @@ services:
   postgres:
     image: postgres:15
     container_name: devsync-postgres
-
     restart: always
-
     ports:
       - "5432:5432"
-
     environment:
       POSTGRES_DB: devsync
       POSTGRES_USER: devsync
       POSTGRES_PASSWORD: devsync123
       TZ: UTC
       PGTZ: UTC
-
     command: postgres -c timezone=UTC
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     networks:
       - devsync-network
-
 
   redis:
     image: redis:7
     container_name: devsync-redis
-
     restart: always
-
     ports:
       - "6379:6379"
-
     environment:
       TZ: UTC
-
     volumes:
       - redis_data:/data
-
     networks:
       - devsync-network
 
 
-  backend:
-    build: .
-    container_name: devsync-backend
-
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: devsync-otel-collector
     restart: always
-
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "8080:8080"
-
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
     depends_on:
-      - postgres
-      - redis
-
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/devsync
-      SPRING_DATASOURCE_USERNAME: devsync
-      SPRING_DATASOURCE_PASSWORD: devsync123
-
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-
-      TZ: UTC
-      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC
-
+      - prometheus
+      - loki
+      - tempo
     networks:
       - devsync-network
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: devsync-prometheus
+    restart: always
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - devsync-network
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: devsync-loki
+    restart: always
+    ports:
+      - "3100:3100"
+    # Using Loki's default out-of-the-box configuration file
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - devsync-network
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: devsync-tempo
+    restart: always
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # Tempo UI/API
+    networks:
+      - devsync-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devsync-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - devsync-network
 
 volumes:
   postgres_data:

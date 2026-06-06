@@ -49,7 +49,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: mappings
+        include: mappings,health,info,metrics,prometheus,env
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+  otlp:
+    tracing:
+      endpoint: http://100.85.231.85:4318/v1/traces
+  tracing:
+    sampling:
+      probability: 1.0
 
 logging:
   level:
