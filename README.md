@@ -83,6 +83,25 @@ DevSync utilizes a reactive, event-driven communications backbone. WebSockets (S
 
 ---
 
+## Database Design
+
+
+<p align="center">
+  <img src="https://github.com/MGhiremath0281/devsync-server/blob/main/docs/db-design.png" alt="DevSync Database Design" width="100%">
+</p>
+
+### Key Design Highlights
+
+- **User & Team Management** – Supports organizations, teams, roles, and permissions.
+- **Project Collaboration** – Models projects, repositories, issues, pull requests, and development workflows.
+- **Real-Time Communication** – Stores channels, messages, reactions, and collaboration events.
+- **Deployment Tracking** – Maintains deployment history, environments, statuses, and audit logs.
+- **Notification System** – Enables event-driven notifications across platform modules.
+- **Scalable Relationships** – Optimized foreign-key relationships and indexing strategy for high-volume collaborative workloads.
+- **Auditability** – Preserves activity history and system events for traceability and monitoring.
+
+---
+
 ## Technology Stack
 
 ### Backend & Data
@@ -98,10 +117,6 @@ DevSync utilizes a reactive, event-driven communications backbone. WebSockets (S
 * **Build Tooling:** Vite
 * **HTTP Client:** Axios
 
-### DevOps & Infrastructure
-* **CI/CD Pipelines:** GitHub Actions
-* **Containerization:** Docker
-* **Webhook Ecosystem:** GitHub Webhooks
 
 ---
 
